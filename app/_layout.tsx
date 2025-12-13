@@ -1,13 +1,17 @@
-import '../global.css';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from '@react-navigation/native';
+import { Session } from '@supabase/supabase-js';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
+import '../global.css';
 import { supabase } from '../lib/supabase';
-import { Session } from '@supabase/supabase-js';
 
 import { useColorScheme } from '@/components/useColorScheme';
 
@@ -35,7 +39,9 @@ export default function RootLayout() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) {
-        supabase.auth.signInAnonymously();
+        supabase.auth.signInAnonymously().then(({ error }) => {
+          if (error) console.error('Error signing in anonymously:', error);
+        });
       }
     });
 
@@ -49,11 +55,18 @@ export default function RootLayout() {
           .eq('id', session.user.id)
           .single()
           .then(({ data, error }) => {
-            if (!data && !error) {
-              supabase.from('profiles').insert({ id: session.user.id }).then(console.log);
-            } else if (error && error.code === 'PGRST116') {
-               // Not found, insert
-               supabase.from('profiles').insert({ id: session.user.id }).then(console.log);
+            if (error && error.code === 'PGRST116') {
+              // Not found, insert
+              supabase
+                .from('profiles')
+                .insert({ id: session.user.id })
+                .then(({ error: insertError }) => {
+                  if (insertError)
+                    console.error('Error creating profile:', insertError);
+                  else console.log('Profile created');
+                });
+            } else if (error) {
+              console.error('Error fetching profile:', error);
             }
           });
       }
